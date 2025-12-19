@@ -1,0 +1,105 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["CI Frontend - React/TypeScript", "CI Backend - Node.js/TypeScript"]
+    branches: [dev]
+    types:
+      - completed
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    
+    # Запускаем только если все CI workflow прошли успешно
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    
+    environment:
+      name: staging
+      url: https://staging.securevault.example.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download frontend build artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: frontend-build
+        path: ./frontend-dist
+    
+    - name: Download backend build artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: backend-build
+        path: ./backend-dist
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ vars.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Deploy backend to ECS
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: securevault/backend
+        ECS_SERVICE: securevault-backend-staging
+        ECS_CLUSTER: securevault-staging
+        ECS_TASK_DEFINITION: backend-task-definition.json
+        CONTAINER_NAME: securevault-backend
+      run: |
+        # Обновляем task definition с новым image
+        aws ecs update-service \
+          --cluster $ECS_CLUSTER \
+          --service $ECS_SERVICE \
+          --task-definition $ECS_TASK_DEFINITION \
+          --force-new-deployment
+        
+        # Ждем успешного деплоя
+        aws ecs wait services-stable \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE
+    
+    - name: Deploy frontend to S3
+      run: |
+        aws s3 sync ./frontend-dist s3://${{ secrets.STAGING_S3_BUCKET }} \
+          --delete \
+          --cache-control "max-age=31536000"
+        
+        aws cloudfront create-invalidation \
+          --distribution-id ${{ secrets.STAGING_CLOUDFRONT_ID }} \
+          --paths "/*"
+    
+    - name: Run smoke tests
+      run: |
+        # Ждем доступности сервиса
+        until curl -f https://api.staging.securevault.example.com/health; do
+          echo "Waiting for backend..."
+          sleep 10
+        done
+        
+        # Базовые smoke тесты
+        curl -f https://staging.securevault.example.com
+        curl -f https://api.staging.securevault.example.com/health
+    
+    - name: Send deployment notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: 'Deployed to staging: ${{ github.sha }}'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
