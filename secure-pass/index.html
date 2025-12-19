@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecurePass - Менеджер паролей</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔒</text></svg>">
+    <style>
+        /* Инлайн стили для надежности */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            height: 90vh;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Экран авторизации -->
+        <div id="auth-screen" class="screen active">
+            <div class="auth-box">
+                <div class="logo">
+                    <span class="logo-icon">🔒</span>
+                    <h1>SecurePass</h1>
+                    <p class="tagline">Безопасное локальное хранение паролей</p>
+                </div>
+                
+                <div class="auth-form">
+                    <div class="form-group">
+                        <label for="master-password">Мастер-пароль:</label>
+                        <div class="input-with-icon">
+                            <input type="password" 
+                                   id="master-password" 
+                                   placeholder="Введите мастер-пароль"
+                                   autocomplete="off">
+                            <button type="button" class="toggle-password" onclick="togglePassword('master-password')">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" id="confirm-group" style="display: none;">
+                        <label for="confirm-password">Подтвердите пароль:</label>
+                        <div class="input-with-icon">
+                            <input type="password" 
+                                   id="confirm-password" 
+                                   placeholder="Повторите мастер-пароль"
+                                   autocomplete="off">
+                            <button type="button" class="toggle-password" onclick="togglePassword('confirm-password')">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="auth-buttons">
+                        <button id="login-btn" class="btn btn-primary" onclick="handleLogin()">
+                            Войти
+                        </button>
+                        <button id="register-btn" class="btn btn-secondary" onclick="toggleRegister()">
+                            Создать новое хранилище
+                        </button>
+                    </div>
+                    
+                    <div class="security-info">
+                        <p>🔐 Все данные шифруются локально</p>
+                        <p>💾 Хранятся только в вашем браузере</p>
+                        <p>⚠️ <strong>Запомните мастер-пароль!</strong> Он не восстанавливается</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Основной экран -->
+        <div id="main-screen" class="screen">
+            <header class="header">
+                <div class="header-left">
+                    <h2>🔒 Мои пароли</h2>
+                    <div class="search-box">
+                        <input type="text" 
+                               id="search-input" 
+                               placeholder="Поиск..." 
+                               oninput="searchPasswords()">
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="showAddForm()">
+                        ＋ Добавить
+                    </button>
+                    <button class="btn btn-secondary" onclick="generatePassword()">
+                        🎲 Сгенерировать
+                    </button>
+                    <button class="btn btn-logout" onclick="logout()" title="Выйти">
+                        🚪
+                    </button>
+                </div>
+            </header>
+            
+            <main class="main-content">
+                <div id="password-list" class="password-list">
+                    <!-- Список паролей будет здесь -->
+                </div>
+                
+                <div id="empty-state" class="empty-state">
+                    <div class="empty-icon">📂</div>
+                    <h3>Хранилище пусто</h3>
+                    <p>Добавьте свой первый пароль</p>
+                    <button class="btn btn-primary" onclick="showAddForm()">
+                        Добавить пароль
+                    </button>
+                </div>
+                
+                <!-- Форма добавления/редактирования -->
+                <div id="password-form" class="password-form" style="display: none;">
+                    <h3 id="form-title">Добавить пароль</h3>
+                    
+                    <div class="form-group">
+                        <label>Название:</label>
+                        <input type="text" id="password-title" placeholder="Например: Gmail">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Логин/Email:</label>
+                        <input type="text" id="password-username" placeholder="user@example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Пароль:</label>
+                        <div class="input-with-buttons">
+                            <input type="password" id="password-value" placeholder="Введите пароль">
+                            <button type="button" class="btn-small" onclick="togglePassword('password-value')">
+                                👁️
+                            </button>
+                            <button type="button" class="btn-small" onclick="generateRandomPassword()">
+                                🎲
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Сайт (URL):</label>
+                        <input type="url" id="password-url" placeholder="https://example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Заметки:</label>
+                        <textarea id="password-notes" rows="3" placeholder="Дополнительная информация"></textarea>
+                    </div>
+                    
+                    <div class="form-buttons">
+                        <button class="btn btn-secondary" onclick="hideAddForm()">
+                            Отмена
+                        </button>
+                        <button id="save-btn" class="btn btn-primary" onclick="savePassword()">
+                            Сохранить
+                        </button>
+                    </div>
+                </div>
+            </main>
+            
+            <footer class="footer">
+                <div class="footer-info">
+                    <span id="password-count">0 паролей</span>
+                    <span>🔐 Локальное шифрование</span>
+                    <button class="btn-link" onclick="exportData()">📤 Экспорт</button>
+                    <button class="btn-link" onclick="importData()">📥 Импорт</button>
+                </div>
+            </footer>
+        </div>
+        
+        <!-- Генератор паролей -->
+        <div id="generator-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Генератор паролей</h3>
+                
+                <div class="generated-password">
+                    <input type="text" id="generated-password" readonly>
+                    <button class="btn btn-primary" onclick="copyGeneratedPassword()">📋</button>
+                </div>
+                
+                <div class="generator-controls">
+                    <div class="form-group">
+                        <label>Длина: <span id="length-value">12</span></label>
+                        <input type="range" id="password-length" min="8" max="32" value="12" 
+                               oninput="document.getElementById('length-value').textContent = this.value">
+                    </div>
+                    
+                    <div class="checkboxes">
+                        <label>
+                            <input type="checkbox" id="use-uppercase" checked> ABC
+                        </label>
+                        <label>
+                            <input type="checkbox" id="use-lowercase" checked> abc
+                        </label>
+                        <label>
+                            <input type="checkbox" id="use-numbers" checked> 123
+                        </label>
+                        <label>
+                            <input type="checkbox" id="use-symbols"> !@#
+                        </label>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="generateNewPassword()">
+                        Сгенерировать новый
+                    </button>
+                </div>
+                
+                <button class="btn btn-secondary" onclick="hideGenerator()">
+                    Закрыть
+                </button>
+            </div>
+        </div>
+        
+        <!-- Уведомления -->
+        <div id="notification" class="notification"></div>
+    </div>
+
+    <script src="app.js"></script>
+    
+    <script>
+        // Предотвращаем регистрацию Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+    </script>
+</body>
+</html>style.cssstyle.css
